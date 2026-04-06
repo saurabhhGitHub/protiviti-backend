@@ -12,7 +12,8 @@ class APIKeyMiddleware:
             '/portal/auth/login',
             '/portal/',
             '/portal/dashboard/',
-            '/'
+            '/',
+            '/favicon.ico'
         ]
 
     def __call__(self, request):

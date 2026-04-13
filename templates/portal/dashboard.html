@@ -17,8 +17,8 @@
                     <span class="font-bold text-xl text-blue-900 tracking-tight">Protiviti Portal</span>
                 </div>
                 <div class="flex items-center space-x-4">
-                    <span id="user-email" class="text-sm text-slate-600 font-medium bg-slate-100 px-3 py-1 rounded-full border border-slate-200">Loading...</span>
-                    <button onclick="logout()" class="text-slate-500 hover:text-slate-800 text-sm font-semibold transition-colors">Sign out</button>
+                    <span id="user-email" class="text-sm text-slate-600 font-medium bg-slate-100 px-3 py-1 rounded-full border border-slate-200">{{ email }}</span>
+                    <a href="/logout/" class="text-slate-500 hover:text-slate-800 text-sm font-semibold transition-colors">Sign out</a>
                 </div>
             </div>
         </div>
@@ -30,6 +30,9 @@
             <button onclick="toggleModal(true)" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md shadow-sm transition-colors text-sm font-semibold cursor-pointer">
                 + New Record
             </button>
+            {% if request.GET.error %}
+            <div class="text-red-600 text-sm font-semibold ml-4">{{ request.GET.error }}</div>
+            {% endif %}
         </div>
 
         <div class="bg-white border border-slate-200 rounded-lg overflow-hidden shadow-sm">
@@ -42,8 +45,26 @@
                         <th class="px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider">Actions</th>
                     </tr>
                 </thead>
-                <tbody id="records-table" class="bg-white divide-y divide-slate-200">
-                    <!-- Javascript Population -->
+                <tbody class="bg-white divide-y divide-slate-200">
+                    {% for record in records %}
+                    <tr class="hover:bg-slate-50 transition-colors">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-800">{{ record.title }}</td>
+                        <td class="px-6 py-4 text-sm text-slate-500 truncate max-w-xs">{{ record.description }}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <span class="px-2.5 py-0.5 inline-flex text-xs font-semibold rounded border shadow-sm capitalize
+                                {% if record.sync_status == 'synced' %}bg-green-100 text-green-700 border-green-200
+                                {% elif record.sync_status == 'failed' %}bg-red-100 text-red-700 border-red-200
+                                {% else %}bg-yellow-100 text-yellow-700 border-yellow-200{% endif %}">
+                                {{ record.sync_status }}
+                            </span>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:text-blue-800 font-medium cursor-pointer transition-colors" onclick="window.location.reload();">Refresh Status</td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="4" class="px-6 py-4 text-center text-slate-500 text-sm italic">No records found. Start syncing today!</td>
+                    </tr>
+                    {% endfor %}
                 </tbody>
             </table>
         </div>
@@ -53,14 +74,15 @@
     <div id="new-record-modal" class="modal fixed inset-0 bg-slate-900 bg-opacity-40 backdrop-blur-sm overflow-y-auto h-full w-full items-center justify-center z-50">
         <div class="bg-white p-6 rounded-lg shadow-xl w-full max-w-md border border-slate-200">
             <h2 class="text-xl font-bold mb-5 text-slate-800">Create New Record</h2>
-            <form id="record-form">
+            <form id="record-form" method="POST" action="/records/create/">
+                {% csrf_token %}
                 <div class="mb-4">
                     <label class="block text-slate-700 text-sm font-semibold mb-2">Title</label>
-                    <input class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900" id="record-title" required />
+                    <input name="title" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900" id="record-title" required />
                 </div>
                 <div class="mb-6">
                     <label class="block text-slate-700 text-sm font-semibold mb-2">Description</label>
-                    <textarea class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 h-24 resize-none" id="record-desc" required></textarea>
+                    <textarea name="description" class="w-full px-3 py-2 border border-slate-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 h-24 resize-none" id="record-desc" required></textarea>
                 </div>
                 <div class="flex justify-end space-x-3">
                     <button type="button" onclick="toggleModal(false)" class="bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-md font-medium text-sm transition-colors cursor-pointer">Cancel</button>
@@ -71,105 +93,11 @@
     </div>
 
     <script>
-        const apiKey = localStorage.getItem('api_key');
-        const sfUserId = localStorage.getItem('sf_user_id');
-        if (!apiKey || !sfUserId) window.location.href = '/portal/';
-
-        async function init() {
-            // Fetch User
-            try {
-                let res = await fetch('/portal/users/me', { headers: { 'X-API-Key': apiKey, 'X-SF-User-Id': sfUserId } });
-                if (!res.ok) throw new Error("Unauthorized");
-                let user = await res.json();
-                document.getElementById('user-email').innerText = user.email;
-            } catch {
-                localStorage.clear();
-                window.location.href = '/portal/';
-            }
-            fetchRecords();
-        }
-
-        async function fetchRecords() {
-            const table = document.getElementById('records-table');
-            // Optimistic loading layout
-            if(table.innerHTML.trim() === '') {
-                table.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center text-slate-500 text-sm">Loading records...</td></tr>';
-            }
-            
-            try {
-                let res = await fetch('/portal/records', { headers: { 'X-API-Key': apiKey, 'X-SF-User-Id': sfUserId } });
-                let records = await res.json();
-                table.innerHTML = '';
-                if(records.length === 0) {
-                    table.innerHTML = '<tr><td colspan="4" class="px-6 py-4 text-center text-slate-500 text-sm italic">No records found. Start syncing today!</td></tr>';
-                }
-                records.forEach(r => {
-                    let color = 'bg-yellow-100 text-yellow-700 border-yellow-200';
-                    if (r.sync_status === 'synced') color = 'bg-green-100 text-green-700 border-green-200';
-                    if (r.sync_status === 'failed') color = 'bg-red-100 text-red-700 border-red-200';
-
-                    table.innerHTML += `
-                        <tr class="hover:bg-slate-50 transition-colors">
-                            <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-slate-800">${r.title}</td>
-                            <td class="px-6 py-4 text-sm text-slate-500 truncate max-w-xs">${Math.random() < 1 ? r.description : ''}</td>
-                            <td class="px-6 py-4 whitespace-nowrap">
-                                <span class="px-2.5 py-0.5 inline-flex text-xs font-semibold rounded border ${color} shadow-sm capitalize">${r.sync_status}</span>
-                            </td>
-                            <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-600 hover:text-blue-800 font-medium cursor-pointer transition-colors" onclick="fetchRecords()">Refresh Status</td>
-                        </tr>
-                    `;
-                });
-            } catch (err) {
-                console.error(err);
-            }
-        }
-
         function toggleModal(show) {
             const modal = document.getElementById('new-record-modal');
             if (show) modal.classList.add('active');
             else modal.classList.remove('active');
         }
-
-        document.getElementById('record-form').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            const title = document.getElementById('record-title').value;
-            const description = document.getElementById('record-desc').value;
-            
-            let res = await fetch('/portal/records', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-API-Key': apiKey,
-                    'X-SF-User-Id': sfUserId
-                },
-                body: JSON.stringify({title, description})
-            });
-
-            if(res.ok) {
-                document.getElementById('record-form').reset();
-                toggleModal(false);
-                fetchRecords();
-                // Async SF Sync is estimated at 1000ms delay, checking 1.5s post trigger natively
-                setTimeout(fetchRecords, 1500); 
-            }
-        });
-
-        async function logout() {
-            try {
-                await fetch('/portal/auth/logout', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-API-Key': apiKey,
-                        'X-SF-User-Id': sfUserId
-                    }
-                });
-            } catch(e) {}
-            localStorage.clear();
-            window.location.href = '/portal/';
-        }
-
-        init();
     </script>
 </body>
 </html>

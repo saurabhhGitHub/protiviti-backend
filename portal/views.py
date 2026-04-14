@@ -59,7 +59,14 @@ class DashboardPageView(View):
                 f"{MULESOFT_URL}/records",
                 headers=headers
             )
-            records = response.json() if response.status_code == 200 else []
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, list):
+                    records = data
+                else:
+                    records = data.get('accounts', [])
+            else:
+                records = []
         except:
             records = []
         
@@ -90,7 +97,7 @@ class CreateRecordView(View):
         
         try:
             response = requests.post(
-                f"{MULESOFT_URL}/records",
+                f"{MULESOFT_URL}/account",
                 json={
                     "title": request.POST.get('title'),
                     "description": request.POST.get('description'),
@@ -98,7 +105,7 @@ class CreateRecordView(View):
                 },
                 headers=headers
             )
-            if response.status_code == 201:
+            if response.status_code in [200, 201]:
                 return redirect('/dashboard/')
             else:
                 return redirect('/dashboard/?error=create_failed')

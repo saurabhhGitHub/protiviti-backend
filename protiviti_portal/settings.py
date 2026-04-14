@@ -148,5 +148,5 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
-MULESOFT_BASE_URL = config('MULESOFT_BASE_URL', default='http://localhost:8081/api/v1')
+MULESOFT_BASE_URL = config('MULESOFT_BASE_URL', default='http://localhost:8081/api')
 API_KEY = config('API_KEY', default='protiviti-poc-key-2024')

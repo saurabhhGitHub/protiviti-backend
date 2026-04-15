@@ -99,6 +99,7 @@ class CreateRecordView(View):
             response = requests.post(
                 f"{MULESOFT_URL}/account",
                 json={
+                    "name": request.POST.get('title'),
                     "title": request.POST.get('title'),
                     "description": request.POST.get('description'),
                     "sf_user_id": sf_user_id
